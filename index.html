@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Controle de Seguros</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: cabeçalho → faixa de totais → filtros → tabela de seguros; edição em painel lateral */
+:root{
+  --bg:#f5f6f3; --surface:#ffffff; --ink:#1c2420; --muted:#5d6a63; --line:#dde2dc;
+  --accent:#1f5f4a; --accent-soft:#e3efe9;
+  --ok:#2d7a3e; --ok-soft:#e2f2e5; --warn:#a86a00; --warn-soft:#fbefd7;
+  --bad:#b3261e; --bad-soft:#fbe4e2; --mute-soft:#eceeeb;
+  --f-display:"Archivo",system-ui,sans-serif; --f-body:"Archivo",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#121614; --surface:#1a201d; --ink:#e6ebe7; --muted:#9aa69f; --line:#2c3531;
+  --accent:#6cc4a1; --accent-soft:#1f3a30; --ok:#7fd18f; --ok-soft:#1e3324; --warn:#e5b45a; --warn-soft:#3a2e15;
+  --bad:#f08a80; --bad-soft:#3d1f1c; --mute-soft:#252b28; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121614; --surface:#1a201d; --ink:#e6ebe7; --muted:#9aa69f; --line:#2c3531;
+  --accent:#6cc4a1; --accent-soft:#1f3a30; --ok:#7fd18f; --ok-soft:#1e3324; --warn:#e5b45a; --warn-soft:#3a2e15;
+  --bad:#f08a80; --bad-soft:#3d1f1c; --mute-soft:#252b28; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0}
+[hidden]{display:none!important}
+.login{max-width:380px;margin:12vh auto;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:24px;display:flex;flex-direction:column;gap:12px}
+.login h1{font-size:22px}
+.login input{padding:10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font-size:15px}
+.login .err{color:var(--bad);font-size:13px;min-height:1em;margin:0}
+.userbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.userbar .note{margin:0}
+
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.45}
+.wrap{max-width:1280px;margin:0 auto;padding-block:24px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:20px}
+header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:12px}
+h1{font-family:var(--f-display);font-size:26px;font-weight:700;margin:0;letter-spacing:-.01em;text-wrap:balance}
+.sub{color:var(--muted);margin:2px 0 0}
+.due{font-family:var(--f-mono);font-size:13px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
+.due b{font-weight:500}
+.due.late{border-color:var(--bad);color:var(--bad)}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.kpi{background:var(--surface);padding:14px 16px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.kpi span{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.kpi strong{font-family:var(--f-mono);font-weight:500;font-size:20px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi.saldo strong{color:var(--bad)} .kpi.pago strong{color:var(--ok)}
+.bar{height:6px;border-radius:3px;background:var(--mute-soft);overflow:hidden;margin-top:4px}
+.bar i{display:block;height:100%;background:var(--ok)}
+.tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+input,select,textarea,button{font:inherit;color:inherit}
+.tools input,.tools select{padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);min-width:0}
+.tools input{flex:1 1 220px}
+.btn{padding:8px 14px;border-radius:6px;border:1px solid var(--line);background:var(--surface);cursor:pointer;font-weight:500}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+.btn.danger{color:var(--bad);border-color:var(--bad)}
+.btn:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,tr:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.tablebox{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:980px}
+th,td{padding:9px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;background:var(--surface);position:sticky;top:0;cursor:pointer;user-select:none}
+th.num,td.num{text-align:right}
+td.num,td.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:13px}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:var(--accent-soft)}
+tr.sold td{color:var(--muted)}
+tr.sold td.nome{text-decoration:line-through}
+td.nome{font-weight:500;white-space:normal;min-width:220px}
+td.nome small{display:block;color:var(--muted);font-weight:400;font-size:12px}
+tfoot td{font-weight:600;background:var(--mute-soft);border-bottom:0}
+.pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600}
+.s-Pendente{background:var(--warn-soft);color:var(--warn)}
+.s-Atrasado{background:var(--bad-soft);color:var(--bad)}
+.s-Pago{background:var(--ok-soft);color:var(--ok)}
+.s-Parcelado{background:var(--accent-soft);color:var(--accent)}
+.s-Contestado{background:var(--bad-soft);color:var(--bad)}
+.s-Vendido,.s-Isento{background:var(--mute-soft);color:var(--muted)}
+.zero{color:var(--muted)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:16px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px}
+.panel h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 12px;font-weight:600}
+.row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;padding:6px 0;border-bottom:1px dashed var(--line)}
+.row:last-child{border-bottom:0}
+.row .v{font-family:var(--f-mono);font-variant-numeric:tabular-nums;text-align:right}
+.row .bar{grid-column:1/-1}
+.row small{color:var(--muted)}
+.empty{padding:40px 16px;text-align:center;color:var(--muted)}
+.note{font-size:12px;color:var(--muted)}
+/* painel de edição */
+.scrim{position:fixed;inset:0;background:rgba(10,15,12,.4);z-index:20}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(460px,100%);background:var(--surface);z-index:21;border-left:1px solid var(--line);display:flex;flex-direction:column;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);padding-right:env(safe-area-inset-right,0px)}
+.drawer header{padding:16px 20px;border-bottom:1px solid var(--line);align-items:center}
+.drawer h3{margin:0;font-size:17px}
+.form{padding:16px 20px;overflow-y:auto;display:grid;grid-template-columns:1fr 1fr;gap:12px;flex:1}
+.form label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);min-width:0}
+.form .full{grid-column:1/-1}
+.form input,.form select,.form textarea{padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font-size:14px;min-width:0;width:100%}
+.form input.money{font-family:var(--f-mono)}
+.form fieldset{grid-column:1/-1;border:1px solid var(--line);border-radius:8px;padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:0}
+.form legend{font-size:12px;font-weight:600;padding:0 4px;color:var(--ink)}
+.calc{grid-column:1/-1;font-family:var(--f-mono);font-size:13px;display:flex;justify-content:space-between;padding:8px 10px;background:var(--mute-soft);border-radius:6px}
+.actions{padding:12px 20px;border-top:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.actions .left{margin-right:auto}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:8px 16px;border-radius:6px;z-index:30;font-size:13px}
+@media (max-width:720px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.kpi strong{font-size:17px}h1{font-size:22px}}
+@media (prefers-reduced-motion:no-preference){.drawer{animation:slide .18s ease-out}@keyframes slide{from{transform:translateX(24px);opacity:.6}}}
+/* extras do controle de seguros */
+.s-Vigente{background:var(--ok-soft);color:var(--ok)}
+.s-Renovar{background:var(--warn-soft);color:var(--warn)}
+.s-Vencido,.s-Sem-seguro{background:var(--bad-soft);color:var(--bad)}
+.s-Em-cotação{background:var(--accent-soft);color:var(--accent)}
+.s-Cancelado,.s-Transferido{background:var(--mute-soft);color:var(--muted)}
+tr.alert td:first-child{box-shadow:inset 3px 0 0 var(--warn)}
+tr.late td:first-child{box-shadow:inset 3px 0 0 var(--bad)}
+td small.d{display:block;color:var(--muted);font-size:12px;font-family:var(--f-body)}
+td.wrap2{white-space:normal;min-width:160px;max-width:220px}
+td.mono.ap{font-size:12px}
+.kpi.warn strong{color:var(--warn)}
+.kpi.bad strong{color:var(--bad)}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:16px}
+.row .d{color:var(--muted);font-size:12px}
+.row .d.warn{color:var(--warn)} .row .d.bad{color:var(--bad)}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+</head><body>
+
+<div id="loginBox" class="wrap" hidden><form class="login" id="loginForm">
+  <h1>Controle de Seguros</h1><p class="sub">Entre com o mesmo e-mail e senha do Controle de IPTU.</p>
+  <input id="lEmail" type="email" placeholder="E-mail" autocomplete="username" required>
+  <input id="lPass" type="password" placeholder="Senha" autocomplete="current-password" required>
+  <button class="btn primary" id="lBtn">Entrar</button><p class="err" id="lErr"></p>
+</form></div>
+<div id="cfgBox" class="wrap" hidden><div class="login"><h1>Configuração pendente</h1><p class="sub">Preencha SUPABASE_URL e SUPABASE_KEY no arquivo config.js.</p></div></div>
+<div class="wrap" id="app" hidden>
+  <header>
+    <div>
+      <h1>Controle de Seguros</h1>
+      <p class="sub">Vencimentos e renovações de seguros de embarcações, veículos e imóveis</p>
+    </div>
+    <div class="userbar"><div class="due" id="due">Próximo vencimento: <b>—</b></div><span class="note" id="who"></span><button class="btn" id="logout">Sair</button></div>
+  </header>
+
+  <section class="kpis" aria-label="Totais">
+    <div class="kpi"><span>Prêmios em vigor</span><strong id="kTotal">—</strong></div>
+    <div class="kpi warn"><span>Renovar agora</span><strong id="kRen">—</strong></div>
+    <div class="kpi bad"><span>Vencidos / sem seguro</span><strong id="kVenc">—</strong></div>
+    <div class="kpi"><span>Itens controlados</span><strong id="kQtd">—</strong></div>
+  </section>
+
+  <div class="tools">
+    <input id="q" type="search" placeholder="Buscar produto, apólice, corretor ou observação">
+    <select id="fCat" aria-label="Categoria"><option value="">Todas as categorias</option></select>
+    <select id="fSeg" aria-label="Seguradora"><option value="">Todas as seguradoras</option></select>
+    <select id="fSt" aria-label="Situação"><option value="">Todas as situações</option></select>
+    <button class="btn primary" id="add">+ Novo seguro</button>
+  </div>
+
+  <div class="tablebox">
+    <table>
+      <thead><tr>
+        <th data-k="produto">Produto</th><th data-k="st">Situação</th><th data-k="seguradora">Seguradora</th><th data-k="corretor">Corretor</th>
+        <th data-k="apolice">Apólice</th><th class="num" data-k="premio">Prêmio</th><th data-k="pagamento">Pagamento</th>
+        <th data-k="vigFim">Vigência</th><th data-k="alerta">Alerta de renovação</th>
+      </tr></thead>
+      <tbody id="tb"></tbody>
+      <tfoot id="tf"></tfoot>
+    </table>
+    <div class="empty" id="empty">Carregando seguros…</div>
+  </div>
+
+  <div class="grid3">
+    <section class="panel"><h2>Próximas renovações</h2><div id="next"></div></section>
+    <section class="panel"><h2>Por seguradora</h2><div id="bySeg"></div></section>
+    <section class="panel"><h2>Por categoria</h2><div id="byCat"></div></section>
+  </div>
+  <p class="note">O alerta de renovação é, por padrão, um mês antes do fim da vigência. A partir do alerta o item aparece como "Renovar"; depois do fim da vigência, como "Vencido". Cancelados e transferidos não entram no total de prêmios.</p>
+</div>
+
+<div id="drawerRoot" hidden>
+  <div class="scrim" id="scrim"></div>
+  <aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="dTitle">
+    <header><h3 id="dTitle">Seguro</h3><button class="btn" id="dClose">Fechar</button></header>
+    <form class="form" id="frm">
+      <label class="full">Produto segurado<input id="i_produto" required></label>
+      <label>Categoria<input id="i_categoria" list="dlCat"></label>
+      <label>Status<select id="i_st"></select></label>
+      <label>Seguradora<input id="i_seguradora" list="dlSeg"></label>
+      <label>Corretor<input id="i_corretor" list="dlCor"></label>
+      <label>Apólice<input id="i_apolice" class="money"></label>
+      <label>Prêmio / parcela (R$)<input id="i_premio" class="money" inputmode="decimal"></label>
+      <label class="full">Forma de pagamento<input id="i_pagamento" placeholder="Ex.: 6x débito em conta - início 13/07/26"></label>
+      <fieldset><legend>Vigência</legend>
+        <label>Início<input id="i_vigIni" type="date"></label>
+        <label>Fim (vencimento)<input id="i_vigFim" type="date"></label>
+        <label style="grid-column:1/-1">Alerta de renovação<input id="i_alerta" type="date"></label>
+        <button type="button" class="btn" id="renew" style="grid-column:1/-1">Renovar por mais 1 ano</button>
+      </fieldset>
+      <div class="calc"><span>Situação</span><span id="cSit">—</span></div>
+      <div class="calc"><span>Vencimento</span><span id="cDias">—</span></div>
+      <label class="full">Valor atualizado / observações<textarea id="i_obs" rows="3"></textarea></label>
+    </form>
+    <div class="actions">
+      <span class="left" id="delBox"></span>
+      <button class="btn" id="cancel" type="button">Cancelar</button>
+      <button class="btn primary" id="save" type="button">Salvar</button>
+    </div>
+  </aside>
+</div>
+<datalist id="dlCat"></datalist><datalist id="dlSeg"></datalist><datalist id="dlCor"></datalist>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function(){
+const STATUS=["Ativo","Em cotação","Sem seguro","Cancelado","Transferido"];
+const SHOWN=["Vigente","Renovar","Vencido","Em cotação","Sem seguro","Cancelado","Transferido"];
+const CATS=["Embarcação","Veículo","Imóvel","Documento","Serviço","Outro"];
+const brl=v=>(+v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
+const money=v=>"R$ "+brl(v);
+const cell=v=>(+v?brl(v):'<span class="zero">–</span>');
+const num=s=>{if(s==null)return 0;s=String(s).trim();if(!s)return 0;if(s.includes(","))s=s.replace(/\./g,"").replace(",",".");const n=parseFloat(s);return isNaN(n)?0:Math.round(n*100)/100};
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const br=d=>d?d.split("-").reverse().join("/"):"";
+const brs=d=>d?d.slice(8,10)+"/"+d.slice(5,7)+"/"+d.slice(2,4):"";
+const iso=dt=>dt.getFullYear()+"-"+String(dt.getMonth()+1).padStart(2,"0")+"-"+String(dt.getDate()).padStart(2,"0");
+const today=()=>iso(new Date());
+const parse=s=>{const [y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d)};
+function shift(s,months){if(!s)return "";const [y,m,d]=s.split("-").map(Number);const dt=new Date(y,m-1+months,1);const last=new Date(dt.getFullYear(),dt.getMonth()+1,0).getDate();dt.setDate(Math.min(d,last));return iso(dt)}
+const days=s=>Math.round((parse(s)-parse(today()))/864e5);
+const inDays=n=>n===0?"hoje":n>0?`em ${n} dia${n>1?"s":""}`:`há ${-n} dia${n<-1?"s":""}`;
+
+let rows=[],sb=null,sortK="ordem",sortDir=1,editing=null;
+
+function alertaOf(r){return r.alerta||shift(r.vigFim,-1)}
+function shownStatus(r){
+  const s=r.status||"Ativo";if(s!=="Ativo")return s;
+  if(!r.vigFim)return "Vigente";
+  const t=today();if(t>r.vigFim)return "Vencido";
+  const a=alertaOf(r);if(a&&t>=a)return "Renovar";
+  return "Vigente";
+}
+const off=r=>r.status==="Cancelado"||r.status==="Transferido";
+const pill=s=>`<span class="pill s-${s.replace(/ /g,"-")}">${s}</span>`;
+
+// filtros
+const fSt=$("fSt");SHOWN.forEach(s=>fSt.add(new Option(s,s)));
+STATUS.forEach(s=>$("i_st").add(new Option(s,s)));
+function fillSel(sel,vals,first){const cur=sel.value;sel.innerHTML="";sel.add(new Option(first,""));vals.forEach(v=>sel.add(new Option(v,v)));sel.value=vals.includes(cur)?cur:""}
+function fillDl(dl,vals){dl.innerHTML=vals.map(v=>`<option value="${esc(v)}">`).join("")}
+const uniq=k=>[...new Set(rows.map(r=>r[k]).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"pt-BR"));
+
+function render(){
+  const cats=uniq("categoria"),segs=uniq("seguradora"),cors=uniq("corretor");
+  fillSel($("fCat"),cats,"Todas as categorias");fillSel($("fSeg"),segs,"Todas as seguradoras");
+  fillDl($("dlCat"),[...new Set([...CATS,...cats])]);fillDl($("dlSeg"),segs);fillDl($("dlCor"),cors);
+
+  const q=$("q").value.trim().toLowerCase(),fc=$("fCat").value,fs=$("fSeg").value,ft=fSt.value;
+  let list=rows.filter(r=>(!fc||r.categoria===fc)&&(!fs||r.seguradora===fs)&&(!ft||shownStatus(r)===ft)&&
+    (!q||[r.produto,r.apolice,r.corretor,r.seguradora,r.obs,r.pagamento,r.categoria].join(" ").toLowerCase().includes(q)));
+  const key=r=>sortK==="st"?SHOWN.indexOf(shownStatus(r)):sortK==="premio"||sortK==="ordem"?num(r[sortK]):sortK==="alerta"?(alertaOf(r)||"9999"):sortK==="vigFim"?(r.vigFim||"9999"):String(r[sortK]||"").toLowerCase();
+  list.sort((a,b)=>{const x=key(a),y=key(b);return (x>y?1:x<y?-1:0)*sortDir});
+
+  $("tb").innerHTML=list.map(r=>{const st=shownStatus(r),a=alertaOf(r);
+    const cls=off(r)?"sold":st==="Renovar"?"alert":(st==="Vencido"||st==="Sem seguro")?"late":"";
+    return `<tr tabindex="0" data-id="${esc(r.id)}" class="${cls}">
+    <td class="nome">${esc(r.produto)}<small>${esc(r.categoria)}${r.obs?" · "+esc(r.obs):""}</small></td>
+    <td>${pill(st)}</td>
+    <td>${esc(r.seguradora)||'<span class="zero">–</span>'}</td><td>${esc(r.corretor)||'<span class="zero">–</span>'}</td>
+    <td class="mono ap">${esc(r.apolice)}</td>
+    <td class="num">${cell(r.premio)}</td>
+    <td class="wrap2">${esc(r.pagamento)}</td>
+    <td class="mono">${r.vigFim?`${brs(r.vigIni)||"…"} a ${brs(r.vigFim)}`:'<span class="zero">–</span>'}</td>
+    <td class="mono">${a&&!off(r)?`${brs(a)}<small class="d">${inDays(days(a))}</small>`:'<span class="zero">–</span>'}</td></tr>`}).join("");
+  const sum=list.filter(r=>!off(r)).reduce((s,r)=>s+num(r.premio),0);
+  $("tf").innerHTML=list.length?`<tr><td>${list.length} ite${list.length>1?"ns":"m"}</td><td></td><td></td><td></td><td></td><td class="num">${brl(sum)}</td><td colspan="3"></td></tr>`:"";
+  $("empty").hidden=list.length>0;
+  if(!list.length&&rows.length)$("empty").textContent="Nenhum seguro com esses filtros.";
+
+  const ativos=rows.filter(r=>(r.status||"Ativo")==="Ativo");
+  $("kTotal").textContent=money(ativos.reduce((s,r)=>s+num(r.premio),0));
+  $("kRen").textContent=rows.filter(r=>shownStatus(r)==="Renovar").length;
+  $("kVenc").textContent=rows.filter(r=>["Vencido","Sem seguro"].includes(shownStatus(r))).length;
+  $("kQtd").textContent=rows.length;
+
+  const prox=ativos.filter(r=>r.vigFim&&r.vigFim>=today()).sort((a,b)=>a.vigFim<b.vigFim?-1:1);
+  const due=$("due");
+  if(prox.length){const p=prox[0],n=days(p.vigFim);due.innerHTML=`Próximo vencimento: <b>${esc(p.produto)}</b> · ${br(p.vigFim)} (${inDays(n)})`;due.classList.toggle("late",shownStatus(p)==="Renovar")}
+  else due.innerHTML="Próximo vencimento: <b>—</b>";
+
+  $("next").innerHTML=ativos.filter(r=>r.vigFim).sort((a,b)=>a.vigFim<b.vigFim?-1:1).slice(0,7).map(r=>{const st=shownStatus(r),n=days(r.vigFim);
+    return `<div class="row"><div>${esc(r.produto)} <small>· ${esc(r.seguradora||r.categoria)}</small></div>
+    <div class="v">${br(r.vigFim)}</div><div class="d ${st==="Renovar"?"warn":st==="Vencido"?"bad":""}" style="grid-column:1/-1">${st==="Vencido"?"venceu ":"vence "}${inDays(n)}</div></div>`}).join("")||'<p class="note">Sem dados.</p>';
+  group("bySeg","seguradora");group("byCat","categoria");
+}
+function group(el,k){
+  const m={};rows.filter(r=>!off(r)).forEach(r=>{const g=r[k]||"—";(m[g]=m[g]||{n:0,t:0,a:0});m[g].n++;m[g].t+=num(r.premio);if(shownStatus(r)==="Renovar"||shownStatus(r)==="Vencido")m[g].a++});
+  $(el).innerHTML=Object.entries(m).sort((a,b)=>b[1].t-a[1].t||b[1].n-a[1].n).map(([g,v])=>`<div class="row"><div>${esc(g)} <small>· ${v.n} ite${v.n>1?"ns":"m"}${v.a?` · <span style="color:var(--warn)">${v.a} a renovar</span>`:""}</small></div>
+    <div class="v">${v.t?brl(v.t):'<span class="zero">–</span>'}</div></div>`).join("")||'<p class="note">Sem dados.</p>';
+}
+
+// ordenação
+document.querySelectorAll("th[data-k]").forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(sortK===k)sortDir*=-1;else{sortK=k;sortDir=1}render()});
+["q","fCat","fSeg","fSt"].forEach(id=>$(id).addEventListener("input",render));
+$("tb").addEventListener("click",e=>{const tr=e.target.closest("tr[data-id]");if(tr)openEdit(rows.find(r=>r.id===tr.dataset.id))});
+$("tb").addEventListener("keydown",e=>{if(e.key==="Enter"){const tr=e.target.closest("tr[data-id]");if(tr)openEdit(rows.find(r=>r.id===tr.dataset.id))}});
+
+// painel
+const F=["produto","categoria","st","seguradora","corretor","apolice","premio","pagamento","vigIni","vigFim","alerta","obs"];
+const M=["premio"];
+function openEdit(r){
+  editing=r||null;
+  $("dTitle").textContent=r?"Editar seguro":"Novo seguro";
+  F.forEach(f=>{const el=$("i_"+f);const v=f==="st"?(r?r.status||"Ativo":"Ativo"):(r?r[f]:"");el.value=M.includes(f)?(num(v)?brl(v):""):(v??"")});
+  if(r&&!r.alerta&&r.vigFim)$("i_alerta").value=shift(r.vigFim,-1);
+  $("delBox").innerHTML=r?'<button class="btn danger" id="del" type="button">Excluir</button>':"";
+  if(r)$("del").onclick=askDelete;
+  calc();$("drawerRoot").hidden=false;$("i_produto").focus();
+}
+function closeEdit(){$("drawerRoot").hidden=true;editing=null}
+function formData(){const o={};F.forEach(f=>{const v=$("i_"+f).value;o[f==="st"?"status":f]=M.includes(f)?num(v):v.trim()});return o}
+function calc(){const d=formData();const st=shownStatus(d);$("cSit").innerHTML=pill(st);
+  $("cDias").textContent=d.vigFim?`${br(d.vigFim)} · ${inDays(days(d.vigFim))}`:"sem data"}
+$("frm").addEventListener("input",e=>{if(e.target.id==="i_vigFim"&&e.target.value)$("i_alerta").value=shift(e.target.value,-1);calc()});
+$("frm").addEventListener("submit",e=>{e.preventDefault();save()});
+$("renew").onclick=()=>{const fim=$("i_vigFim").value;if(!fim){toast("Informe primeiro o fim da vigência");$("i_vigFim").focus();return}
+  $("i_vigIni").value=fim;$("i_vigFim").value=shift(fim,12);$("i_alerta").value=shift($("i_vigFim").value,-1);$("i_st").value="Ativo";calc();
+  toast("Vigência avançada 1 ano. Confira o prêmio e salve.")};
+$("dClose").onclick=$("cancel").onclick=$("scrim").onclick=closeEdit;
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("drawerRoot").hidden)closeEdit()});
+
+function askDelete(){
+  $("delBox").innerHTML='<span class="note">Excluir mesmo? </span><button class="btn danger" id="delYes" type="button">Sim, excluir</button> <button class="btn" id="delNo" type="button">Não</button>';
+  $("delNo").onclick=()=>openEdit(editing);
+  $("delYes").onclick=async()=>{const {error}=await sb.from("seguros").delete().eq("id",editing.id);if(error){toast("Não foi possível excluir: "+error.message);return}toast("Seguro excluído");closeEdit();load()};
+}
+async function save(){
+  const d=formData();if(!d.produto){toast("Informe o produto segurado");$("i_produto").focus();return}
+  if(d.vigIni&&d.vigFim&&d.vigFim<d.vigIni){toast("O fim da vigência está antes do início");$("i_vigFim").focus();return}
+  $("save").disabled=true;
+  const row=toDb(d);
+  let res;
+  if(editing)res=await sb.from("seguros").update(row).eq("id",editing.id);
+  else{row.ordem=rows.reduce((m,r)=>Math.max(m,+r.ordem||0),0)+1;res=await sb.from("seguros").insert(row)}
+  $("save").disabled=false;
+  if(res.error){toast("Não foi possível salvar: "+res.error.message);return}
+  toast(editing?"Alterações salvas":"Seguro adicionado");closeEdit();load();
+}
+let tt;function toast(m){const t=$("toast");t.textContent=m;t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,2800)}
+$("add").onclick=()=>openEdit(null);
+$("save").onclick=save;
+
+function fromDb(r){return {id:r.id,ordem:r.ordem,produto:r.produto,categoria:r.categoria||"",seguradora:r.seguradora||"",corretor:r.corretor||"",apolice:r.apolice||"",premio:+r.premio||0,pagamento:r.pagamento||"",vigIni:r.vig_ini||"",vigFim:r.vig_fim||"",alerta:r.alerta||"",status:r.status||"Ativo",obs:r.obs||""}}
+function toDb(d){return {produto:d.produto,categoria:d.categoria,seguradora:d.seguradora,corretor:d.corretor,apolice:d.apolice,premio:d.premio,pagamento:d.pagamento,vig_ini:d.vigIni||null,vig_fim:d.vigFim||null,alerta:d.alerta||(d.vigFim?shift(d.vigFim,-1):null),status:d.status,obs:d.obs}}
+async function load(){
+  const {data,error}=await sb.from("seguros").select("*").order("ordem");
+  if(error){$("empty").hidden=false;$("empty").textContent="Erro ao carregar: "+error.message;return}
+  rows=data.map(fromDb);
+  if(!rows.length)$("empty").textContent="Nenhum seguro cadastrado ainda. Use “+ Novo seguro” para adicionar o primeiro.";
+  render();
+}
+function show(which){["loginBox","cfgBox","app"].forEach(id=>$(id).hidden=id!==which)}
+async function start(session){
+  if(!session){show("loginBox");return}
+  show("app");$("who").textContent=session.user.email;await load();
+  if(!window._rt){window._rt=sb.channel("seguros-rt").on("postgres_changes",{event:"*",schema:"public",table:"seguros"},()=>load()).subscribe()}
+}
+const C=window.SEG_CONFIG||window.IPTU_CONFIG||{};
+if(!C.SUPABASE_URL||C.SUPABASE_URL.includes("COLE_AQUI")||!window.supabase){show("cfgBox")}
+else{
+  sb=window.supabase.createClient(C.SUPABASE_URL,C.SUPABASE_KEY);
+  $("loginForm").addEventListener("submit",async e=>{e.preventDefault();$("lErr").textContent="";$("lBtn").disabled=true;
+    const {error}=await sb.auth.signInWithPassword({email:$("lEmail").value.trim(),password:$("lPass").value});
+    $("lBtn").disabled=false;if(error)$("lErr").textContent=error.message==="Invalid login credentials"?"E-mail ou senha incorretos.":error.message;});
+  $("logout").onclick=async()=>{await sb.auth.signOut()};
+  sb.auth.onAuthStateChange((ev,session)=>{if(ev==="INITIAL_SESSION"||ev==="SIGNED_IN"||ev==="SIGNED_OUT")start(session)});
+  setInterval(()=>{if(rows.length)render()},36e5);
+}
+})();
+</script>
+</body></html>
